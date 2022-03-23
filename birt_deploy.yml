@@ -1,0 +1,37 @@
+---
+- hosts: "{{ hostvars['localhost']['nfs_host'] }}"
+  gather_facts: no
+  tasks:
+  - block:
+  
+      - set_fact:
+         project: "{{project | replace(' ', '')}}"  
+        register: result
+	
+      - name: Check birt fodler in namespace
+        stat: path="{{hostvars['localhost']['nfs_folder']}}/RTFiles/{{hostvars['localhost']['namespace']}}/birt"
+        register: birt
+	
+      - name: creating birt folder
+        file:
+          path: "{{hostvars['localhost']['nfs_folder']}}/RTFiles/{{hostvars['localhost']['namespace']}}/birt"
+          state: directory
+      	when: birt.stat.exists == false 		  
+      
+      - name: Extract archive
+        unarchive:
+              creates: FormsLayout
+              src: "{{hostvars['localhost']['ansible_patch_backup']}}/{{hostvars['localhost']['buildpath']}}/Builds/FormsLayout.zip"
+              dest: "{{hostvars['localhost']['nfs_folder']}}/RTFiles/{{hostvars['localhost']['namespace']}}/birt/"
+
+    rescue:
+      - name: Update status,cb_status fields as failed in Task Engine
+        shell: sudo  ansible-playbook ../modules/update_cd_status_task_engine.yml --extra-vars "cd_status=copy_formslayout_failed   environmentalias={{environmentalias}} task_id={{task_id}}" 
+        delegate_to: localhost
+      - name: Update status,cd_status fields as failed in Task Engine
+        shell: sudo  ansible-playbook ../modules/update_cd_status_task_engine.yml --extra-vars "status=cd_failed environmentalias={{environmentalias}} task_id={{task_id}}" 
+        delegate_to: localhost
+      - fail:
+          msg: CD failed at formslayout folder deploy stage
+                  
+   
